@@ -1,8 +1,10 @@
 ﻿using Identityframeworkwithapi.Models;
+using Identityframeworkwithapi.Services;
 using MailKit.Net.Smtp;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MimeKit;
 using NuGet.Common;
@@ -21,12 +23,15 @@ namespace Identityframeworkwithapi.Controllers
         private readonly UserManager<User> _userManager;
         private readonly SignInManager<User> _signInManager;
         private readonly IConfiguration _configuration;
-
+        private readonly IBookService _bookService;
+        private readonly IdentityFramewrokUsingApiContext identityFramewrokUsingApiContext;
         // Constructor
         public AuthorizeController(
             UserManager<User> userManager,
             SignInManager<User> signInManager,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IBookService bookService,
+            IdentityFramewrokUsingApiContext identityFramewrokUsingApiContext)
         {
             _userManager = userManager;
             Console.WriteLine(_userManager);
@@ -34,6 +39,8 @@ namespace Identityframeworkwithapi.Controllers
             Console.WriteLine(_signInManager);
             _configuration = configuration;
             Console.WriteLine(_configuration);
+            _bookService = bookService;
+            this.identityFramewrokUsingApiContext = identityFramewrokUsingApiContext;
         }
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterModel model)
@@ -238,6 +245,81 @@ namespace Identityframeworkwithapi.Controllers
                 return BadRequest(new { errors = result.Errors });
             }
         }
+        [HttpPost("AddBooksDetails")]
+        public async Task<ActionResult<Book>> AddBookAsync(Book book)
+        {
+            try
+            {
+                var addedBook = await _bookService.AddBookAsync(book);
+                return Ok(addedBook);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+        [HttpGet("{username}")]
+        public async Task<ActionResult<string>> GetUserIdByUsername(string username)
+        {
+            try
+            {
+                var user = await _userManager.FindByNameAsync(username);
+                if (user == null)
+                {
+                    return NotFound("User not found");
+                }
+
+                return Ok(user.Id);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+        [HttpGet("user/{userId}")]
+        public async Task<ActionResult<IEnumerable<Book>>> GetBooksByUserId(string userId)
+        {
+            try
+            {
+                var books = await identityFramewrokUsingApiContext.Books
+                    .Where(b => b.UserId == userId)
+                    .ToListAsync();
+
+                if (books == null || !books.Any())
+                {
+                    return NotFound("No books found for this user");
+                }
+
+                return Ok(books);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+        [HttpDelete("{bookId}")]
+        public async Task<ActionResult> DeleteBookAsync(int bookId)
+        {
+            try
+            {
+                var book = await identityFramewrokUsingApiContext.Books.FindAsync(bookId);
+                if (book == null)
+                {
+                    return NotFound("Book not found");
+                }
+
+                identityFramewrokUsingApiContext.Books.Remove(book);
+                await identityFramewrokUsingApiContext.SaveChangesAsync();
+
+                return NoContent();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+
 
 
 
